@@ -1,0 +1,28 @@
+CONFIG_ARCH_X86_64=y
+CONFIG_PLAT_KVM=y
+CONFIG_LIBMUSL=y
+CONFIG_LIBVIRTIO_NET=y
+# Allow IPv4 to be configured from the kernel cmdline via
+#   netdev.ip=<cidr>[:<gw>[:<dns0>[:<dns1>[:<hostname>[:<domain>]]]]]
+# Needed for tap0 benchmarking where there is no host-side DHCP server.
+CONFIG_LIBUKNETDEV_EINFO_LIBPARAM=y
+CONFIG_LIBLWIP=y
+CONFIG_LWIP_IPV4=y
+CONFIG_LWIP_UDP=y
+CONFIG_LWIP_TCP=y
+CONFIG_LWIP_DHCP=y
+CONFIG_LWIP_SOCKET=y
+CONFIG_LWIP_THREADS=y
+CONFIG_LWIP_UKNETDEV=y
+CONFIG_LIBUKSCHEDCOOP=y
+CONFIG_LIBUKMMAP=y
+CONFIG_APPNETPERF_USE_OMNI=y
+# Auto-seed the CSPRNG from the CPU's RDRAND/RDSEED.
+# Requires QEMU run with `-cpu max` (works for both TCG and KVM); without
+# a host CPU model the qemu64 default doesn't expose RDRAND. CMDLINE_SEED is
+# kept enabled below as a manual override (random.seed=[...] on the cmdline
+# still wins if provided).
+CONFIG_LIBUKRANDOM_LCPU=y
+CONFIG_LIBUKRANDOM_CMDLINE_SEED=y
+CONFIG_LIBUKPRINT_KLVL_INFO=y
+CONFIG_LIBPOSIX_POLL=y

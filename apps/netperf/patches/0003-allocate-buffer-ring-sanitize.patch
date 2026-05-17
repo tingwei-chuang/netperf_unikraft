@@ -1,0 +1,53 @@
+--- a/src/netlib.c
++++ b/src/netlib.c
+@@ -1538,7 +1538,50 @@
+   char default_fill[] = "netperf";
+   int  fill_cursor = 0;
+ 
++  /* unikraft: defensive sanitization. The alignment math used below
++   *   buffer_ptr = (buffer_base + alignment - 1) & ~(alignment - 1)
++   * only works for power-of-two alignment values. And any caller supplying
++   * a huge buffer_size (notably lwIP's getsockopt(SO_RCVBUF) returning
++   * INT_MAX before we override RECV_BUFSIZE_DEFAULT in lwipopts.h) causes
++   * the default-fill loop below to write "netperf" past the end of the
++   * allocation, corrupting virtio queue descriptors and crashing the
++   * kernel from an unrelated IRQ later.
++   *
++   * Clamp every parameter to a sane range. */
++  if (width < 1 || width > 1024) {
++    if (debug) fprintf(where,
++      "allocate_buffer_ring: clamping width %d -> 2\n", width);
++    fflush(where);
++    width = 2;
++  }
++  if (alignment <= 0 || alignment > 4096 ||
++      (alignment & (alignment - 1)) != 0) {
++    if (debug) fprintf(where,
++      "allocate_buffer_ring: clamping alignment %d -> 8\n", alignment);
++    fflush(where);
++    alignment = 8;
++  }
++  if (offset < 0 || offset >= alignment) {
++    if (debug) fprintf(where,
++      "allocate_buffer_ring: clamping offset %d -> 0\n", offset);
++    fflush(where);
++    offset = 0;
++  }
++  if (buffer_size < 1 || buffer_size > (16 * 1024 * 1024)) {
++    if (debug) fprintf(where,
++      "allocate_buffer_ring: clamping buffer_size %d -> 16384\n", buffer_size);
++    fflush(where);
++    buffer_size = 16384;
++  }
++
+   malloc_size = buffer_size + alignment + offset;
++  if (debug > 1) {
++    fprintf(where,
++            "allocate_buffer_ring: width=%d buffer_size=%d "
++            "alignment=%d offset=%d malloc_size=%d\n",
++            width, buffer_size, alignment, offset, malloc_size);
++    fflush(where);
++  }
+ 
+   /* did the user wish to have the buffers pre-filled with data from a */
+   /* particular source? */

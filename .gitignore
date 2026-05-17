@@ -1,0 +1,25 @@
+# Cloned upstream trees — fetched by setup.sh
+/unikraft/
+/libs/lwip/
+/libs/musl/
+/libs/compiler-rt/
+
+# Unikraft build artifacts
+apps/*/build/
+
+# Generated config (derived from netperf.defconfig)
+apps/*/.config
+apps/*/.config.old
+apps/*/.config.orig
+apps/*/.unikraft
+
+# Editor / OS metadata
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Local logs
+*.log
+/tmp/

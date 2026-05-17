@@ -1,0 +1,27 @@
+--- a/src/netlib.c	2015-07-21 01:39:35.000000000 +0800
++++ b/src/netlib.c	2026-05-18 05:15:22.045830218 +0800
+@@ -3035,10 +3035,20 @@
+   sock_opt_len = sizeof(*effective_sizep);
+   if (getsockopt(sd, SOL_SOCKET, optname, (char *)effective_sizep,
+ 		 &sock_opt_len) < 0) {
+-    fprintf(where, "netperf: get_sock_buffer: getsockopt %s: errno %d\n",
+-	    (which == SEND_BUFFER) ? "SO_SNDBUF" : "SO_RCVBUF", errno);
+-    fflush(where);
+-    *effective_sizep = -1;
++    /* unikraft: lwIP does not implement SO_SNDBUF as a getsockopt query
++     * (returns ENOPROTOOPT). Fall back to a sane default so the buffer-ring
++     * arithmetic in nettest_omni.c does not go negative and ask malloc
++     * for ~2 GiB. The reported value is purely informational; it does not
++     * affect actual lwIP send-path buffering. Suppress the per-connection
++     * error message unless the user is actively debugging. */
++    if (debug) {
++      fprintf(where,
++              "netperf: get_sock_buffer: getsockopt %s: errno %d "
++              "(falling back to 16384)\n",
++              (which == SEND_BUFFER) ? "SO_SNDBUF" : "SO_RCVBUF", errno);
++      fflush(where);
++    }
++    *effective_sizep = 16384;
+   }
+ 
+   if (debug) {

@@ -1,0 +1,37 @@
+--- a/src/netserver.c	2026-05-17 16:28:04.843792172 +0800
++++ b/src/netserver.c	2026-05-17 16:28:28.522055371 +0800
+@@ -206,21 +206,12 @@
+ static void
+ init_netserver_globals() {
+
+-#if defined(__VMS) || defined(VMWARE_UW)
++  /* unikraft: no fork/daemon - always foreground, single connection */
+   spawn_on_accept = 0;
+   want_daemonize = 0;
+-#else
+-  spawn_on_accept = 1;
+-#if defined(WIN32)
+-  /* we only know how to spawn in WIN32, not daemonize */
+-  want_daemonize = 0;
+-#else
+-  want_daemonize = 1;
+-#endif /* WIN32 */
+-#endif /* __VMS || VMWARE_UW */
+
+   child = 0;
+-  not_inetd = 0;
++  not_inetd = 1;
+   netperf_daemon = 0;
+ }
+
+@@ -1502,8 +1493,8 @@
+    code that netserver had become.  raj 2011-07-11 */
+
+
+-int _cdecl
+-main(int argc, char *argv[]) {
++int
++netserver_main(int argc, char *argv[]) {
+
+ #ifdef WIN32
+   WSADATA	wsa_data ;

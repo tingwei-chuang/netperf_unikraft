@@ -1,0 +1,21 @@
+### Invisible option: pull in all dependencies automatically
+config APPNETPERF_DEPENDENCIES
+	bool
+	default y
+	select LIBMUSL
+	select LIBLWIP
+	select LWIP_TCP
+	select LWIP_UDP
+	select LWIP_IPV4
+	select LWIP_DHCP
+	select LWIP_SOCKET
+	select LWIP_THREADS
+	select LIBUKSCHEDCOOP
+	select LIBUKMMAP
+
+config APPNETPERF_USE_OMNI
+	bool "Enable OMNI test framework (TCP_STREAM, TCP_RR, UDP_RR, ...)"
+	default y
+	help
+	  The OMNI framework powers modern netperf test types.
+	  Without it only classic BSD tests are available.

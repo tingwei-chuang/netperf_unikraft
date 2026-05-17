@@ -1,0 +1,78 @@
+################################################################################
+# Application registration
+################################################################################
+$(eval $(call addlib,appnetperf))
+
+################################################################################
+# Source fetch
+################################################################################
+APPNETPERF_VERSION  = 2.7.0
+APPNETPERF_URL      = https://github.com/HewlettPackard/netperf/archive/refs/tags/netperf-$(APPNETPERF_VERSION).tar.gz
+APPNETPERF_ZIPNAME  = netperf-netperf-$(APPNETPERF_VERSION)
+APPNETPERF_PATCHDIR = $(APPNETPERF_BASE)/patches
+
+$(eval $(call fetch,appnetperf,$(APPNETPERF_URL)))
+$(eval $(call patch,appnetperf,$(APPNETPERF_PATCHDIR),$(APPNETPERF_ZIPNAME)))
+
+################################################################################
+# Include paths
+################################################################################
+APPNETPERF_SRC = $(APPNETPERF_ORIGIN)/$(APPNETPERF_ZIPNAME)/src
+
+APPNETPERF_CINCLUDES-y += -I$(APPNETPERF_BASE)/include
+APPNETPERF_CINCLUDES-y += -I$(APPNETPERF_SRC)
+
+################################################################################
+# Compile-time feature flags
+################################################################################
+APPNETPERF_CFLAGS-y += -DHAVE_CONFIG_H
+
+# Enable IPv4 + DNS resolution via lwIP
+APPNETPERF_CFLAGS-y += -DDO_IPV6=0
+
+# Disable every transport / CPU-util backend that doesn't exist on a unikernel
+APPNETPERF_CFLAGS-y += -UWANT_UNIX -UWANT_DLPI -UWANT_XTI
+APPNETPERF_CFLAGS-y += -UWANT_SCTP -UWANT_SDP
+APPNETPERF_CFLAGS-y += -UWANT_HISTOGRAM -UWANT_INTERVALS -UWANT_DEMO
+APPNETPERF_CFLAGS-y += -UUSE_LOOPER -UUSE_PROC_STAT -UUSE_KSTAT
+APPNETPERF_CFLAGS-y += -UUSE_PSTAT -UUSE_PERFSTAT -UUSE_SYSCTL
+
+# OMNI test framework (enables TCP_STREAM, TCP_RR, UDP_STREAM, UDP_RR, ...)
+ifeq ($(CONFIG_APPNETPERF_USE_OMNI),y)
+APPNETPERF_CFLAGS-y += -DWANT_OMNI
+endif
+
+# nettest_bsd.c and nettest_omni.c share global variable definitions (C89 tentative
+# definitions). GCC 10+ defaults to -fno-common which rejects this; -fcommon restores
+# the old behavior.
+APPNETPERF_CFLAGS-y += -fcommon
+
+# Silence warning storm from netperf's legacy code
+APPNETPERF_CFLAGS-y += -Wno-implicit-function-declaration
+APPNETPERF_CFLAGS-y += -Wno-int-conversion
+APPNETPERF_CFLAGS-y += -Wno-pointer-sign
+APPNETPERF_CFLAGS-y += -Wno-unused-but-set-variable
+APPNETPERF_CFLAGS-y += -Wno-unused-variable
+APPNETPERF_CFLAGS-y += -Wno-unused-function
+APPNETPERF_CFLAGS-y += -Wno-format
+APPNETPERF_CFLAGS-y += -Wno-maybe-uninitialized
+APPNETPERF_CFLAGS-y += -Wno-unused-result
+
+################################################################################
+# Source files — netserver only; no CPU util, no exotic transports
+################################################################################
+APPNETPERF_SRCS-y += $(APPNETPERF_SRC)/netserver.c
+APPNETPERF_SRCS-y += $(APPNETPERF_SRC)/netlib.c
+APPNETPERF_SRCS-y += $(APPNETPERF_SRC)/netsh.c
+APPNETPERF_SRCS-y += $(APPNETPERF_SRC)/nettest_bsd.c
+ifeq ($(CONFIG_APPNETPERF_USE_OMNI),y)
+APPNETPERF_SRCS-y += $(APPNETPERF_SRC)/nettest_omni.c
+endif
+# CPU utilization stubs (no /proc, no kstat on a unikernel)
+APPNETPERF_SRCS-y += $(APPNETPERF_SRC)/netcpu_none.c
+# DSCP/TOS parsing and UUID helpers required by netsh and nettest_omni
+APPNETPERF_SRCS-y += $(APPNETPERF_SRC)/dscp.c
+APPNETPERF_SRCS-y += $(APPNETPERF_SRC)/net_uuid.c
+
+# glue.c: owns main(), calls netserver_main() with sensible defaults
+APPNETPERF_SRCS-y += $(APPNETPERF_BASE)/glue.c
