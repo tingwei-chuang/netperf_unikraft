@@ -14,16 +14,17 @@ the [Unikraft](https://unikraft.org) unikernel framework. The host-side
 
 ## Status
 
-**Working end-to-end.** Both QEMU user-mode and tap0 + vhost-net are exercised.
+**Working end-to-end** on **x86_64 and arm64**. Both QEMU user-mode and
+tap0 + vhost-net are exercised.
 
 Verified results (Intel WSL2, TCG, single vcpu):
 
-| Test                 | User-mode (`-netdev user`) | tap0 + vhost-net |
-| -------------------- | -------------------------: | ---------------: |
-| TCP_STREAM 1 KB msg  |                    443 Mbps |     **4156 Mbps** |
-| TCP_STREAM 8 KB msg  |                   1439 Mbps |     **3357 Mbps** |
-| TCP_STREAM 64 KB msg |                    548 Mbps |     **3450 Mbps** |
-| TCP_RR 1 KB req/resp |              2630 trans/sec | **7179 trans/sec** |
+| Test                 | x86_64 user-mode | x86_64 tap+vhost   | arm64 tap+vhost   |
+| -------------------- | ---------------: | -----------------: | ----------------: |
+| TCP_STREAM 1 KB msg  |         443 Mbps |     **4156 Mbps**  |    **2813 Mbps**  |
+| TCP_STREAM 8 KB msg  |        1439 Mbps |     **3357 Mbps**  |                — |
+| TCP_STREAM 64 KB msg |         548 Mbps |     **3450 Mbps**  |                — |
+| TCP_RR 1 KB req/resp |   2630 trans/sec |  **7179 trans/sec** |                — |
 
 Tap+vhost gives roughly 7x the user-mode throughput. Use tap for any actual
 benchmarking; use user-mode for quick smoke tests where no host setup is
@@ -63,7 +64,8 @@ netperf_unikraft/
 ├── apps/netperf/                       <-- the app package
 │   ├── Makefile, Makefile.uk
 │   ├── Config.uk                       <-- Kconfig (deps, OMNI toggle)
-│   ├── netperf.defconfig               <-- canonical build config
+│   ├── netperf.defconfig               <-- x86_64 build config
+│   ├── netperf.arm64.defconfig         <-- arm64 cross-compile build config
 │   ├── glue.c                          <-- owns main(), calls netserver_main()
 │   ├── exportsyms.uk
 │   ├── include/
@@ -88,8 +90,13 @@ patched automatically by Unikraft's build system using
 ### 0. Build prerequisites
 
 ```bash
+# x86_64 build:
 sudo apt-get install -y git patch wget build-essential bison flex \
                         libncurses-dev python3 qemu-system-x86 unzip
+
+# Additional packages for the arm64 cross-compile path:
+sudo apt-get install -y gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu \
+                        qemu-system-arm
 ```
 
 ### 1. Clone dependencies and apply patches
@@ -121,24 +128,54 @@ sudo apt-get install -y netperf
 
 ### 3. Build
 
+Two defconfigs ship with the app — pick one based on your target:
+
 ```bash
 cd apps/netperf
+
+# Native x86_64 build:
 cp netperf.defconfig .config
 make olddefconfig
 make -j$(nproc)
 # image: build/netperf_qemu-x86_64
+
+# Or — arm64 cross-compile from an x86_64 host:
+cp netperf.arm64.defconfig .config
+make olddefconfig CROSS_COMPILE=aarch64-linux-gnu-
+make -j$(nproc) CROSS_COMPILE=aarch64-linux-gnu-
+# image: build/netperf_qemu-arm64
 ```
+
+`CROSS_COMPILE` must be passed to **both** `olddefconfig` and the build —
+Unikraft re-resolves toolchain-dependent Kconfig defaults at olddefconfig
+time. Switch architectures with a clean `build/` directory; the same build
+tree cannot hold both at once.
 
 ### 4. Run the unikernel (server)
 
 ```bash
+# x86_64:
 qemu-system-x86_64 -display none -no-reboot -nographic \
   -kernel build/netperf_qemu-x86_64 \
   -m 256 -cpu max \
   -netdev tap,id=hn0,ifname=tap0,script=no,downscript=no,vhost=on,vhostforce=on \
   -device virtio-net-pci,netdev=hn0 \
   -append "netperf netdev.ip=172.31.0.2/24:172.31.0.1 -- -D -f -4 -p 12865"
+
+# arm64 (QEMU virt board; -cpu max exposes FEAT_RNG so RNDR/RNDRRS work):
+qemu-system-aarch64 -display none -no-reboot -nographic \
+  -machine virt -cpu max \
+  -kernel build/netperf_qemu-arm64 \
+  -m 256 \
+  -netdev tap,id=hn0,ifname=tap0,script=no,downscript=no,vhost=on,vhostforce=on \
+  -device virtio-net-pci,netdev=hn0 \
+  -append "netperf netdev.ip=172.31.0.2/24:172.31.0.1 -- -D -f -4 -p 12865"
 ```
+
+> The arm64 boot log spends ~30 ms listing dummy virtio-mmio slots before
+> the PCI bus is probed — that's not an error. The virtio-net-pci device
+> attaches via PCI right after, then lwIP comes up. Look for
+> `Registered netdev0` / `liblwip ... en1: Set as default interface`.
 
 ### 5. Drive tests from the host
 
@@ -167,7 +204,8 @@ netperf -H 127.0.0.1 -p 20003 -t TCP_STREAM -l 10 -- -m 1024 -P ,12866
 
 ## Required build features
 
-`netperf.defconfig` is the source of truth. The non-obvious entries:
+The two defconfigs share the same set of feature flags; only the
+arch/platform/CPU options differ. The non-obvious entries:
 
 | Config option                          | Why it's required                                                                                          |
 | -------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
@@ -175,18 +213,26 @@ netperf -H 127.0.0.1 -p 20003 -t TCP_STREAM -l 10 -- -m 1024 -P ,12866
 | `CONFIG_LIBVIRTIO_NET=y`               | virtio-net driver.                                                                                         |
 | `CONFIG_LIBLWIP=y` + `LWIP_*`          | TCP/IP stack, IPv4, UDP, DHCP, sockets, threads, uknetdev glue.                                            |
 | `CONFIG_LIBUKNETDEV_EINFO_LIBPARAM=y`  | Required for `netdev.ip=<cidr>:<gw>` cmdline param. Without it cmdline IP is silently ignored — fatal on tap0 where there is no DHCP server. |
-| `CONFIG_LIBUKRANDOM_LCPU=y`            | Auto-seed the CSPRNG via RDRAND/RDSEED. Lets you run without `random.seed=[...]` on the cmdline. Requires `-cpu max` (or `-enable-kvm -cpu host`). |
+| `CONFIG_LIBUKRANDOM_LCPU=y`            | Auto-seed the CSPRNG. On x86_64 the driver uses RDRAND/RDSEED; on arm64 it uses Armv8.5-A RNDR/RNDRRS (`HAVE_ARM64_FEAT_RNG` is auto-selected and bumps `-march` to `armv8.5-a+rng`). Requires `-cpu max` (or KVM with a CPU that exposes the feature). |
 | `CONFIG_LIBUKRANDOM_CMDLINE_SEED=y`    | Kept as a manual override; useful for reproducible runs.                                                   |
 | `CONFIG_LIBUKPRINT_KLVL_INFO=y`        | Default log level is ERR. Without INFO you can't see the lwIP / virtio init lines that confirm boot.       |
 | `CONFIG_LIBPOSIX_POLL=y`               | `accept_connections()` uses `select()` which is provided by posix-poll.                                    |
 | `CONFIG_LIBUKMMAP=y`                   | netperf calls `mmap` indirectly through musl.                                                              |
 | `CONFIG_LIBUKSCHEDCOOP=y`              | Cooperative scheduler. lwIP threading needs *a* scheduler.                                                 |
 
+Arch / platform options that the two defconfigs set differently:
+
+| Target  | Arch / platform options                                                                                                  |
+| ------- | ------------------------------------------------------------------------------------------------------------------------ |
+| x86_64  | `CONFIG_ARCH_X86_64=y`, `CONFIG_PLAT_KVM=y`, `CONFIG_KVM_VMM_QEMU=y` (multiboot proto auto-selected, NS16550 console)     |
+| arm64   | `CONFIG_ARCH_ARM_64=y`, `CONFIG_PLAT_KVM=y`, `CONFIG_KVM_VMM_QEMU=y`, `CONFIG_KVM_BOOT_PROTO_LXBOOT=y`, `CONFIG_MCPU_ARM64_GENERIC=y` (PL011 console, GICv2, PL031 RTC, PSCI all auto-selected). `CONFIG_FPSIMD=y` is auto-selected by musl on arm64 (musl uses FP/SIMD regs). |
+
 QEMU flags that matter:
 
 | Flag                                                   | Reason                                                                       |
 | ------------------------------------------------------ | ---------------------------------------------------------------------------- |
-| `-cpu max` (TCG) or `-enable-kvm -cpu host`            | Exposes RDRAND so `libukrandom_lcpu` can seed the CSPRNG without cmdline.    |
+| `-cpu max` (TCG) or `-enable-kvm -cpu host`            | Exposes the CPU randomness instruction set (`RDRAND` on x86_64, FEAT_RNG / `RNDR` on arm64) so `libukrandom_lcpu` can seed the CSPRNG without cmdline. |
+| `-machine virt` (arm64 only)                           | Selects the QEMU virt board, which is what the KVM platform expects on arm64 (provides GICv2, PL011 UART, PL031 RTC, generic PCI). |
 | `-netdev tap,...,vhost=on,vhostforce=on`               | vhost-net offload; ~7x throughput vs. plain tap.                             |
 | `-append "netperf netdev.ip=<cidr>:<gw> -- <args>"`    | Format is one colon-separated string, **not** `netdev.ipv4_addr=` etc.       |
 
