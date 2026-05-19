@@ -1,0 +1,325 @@
+#  libmusl Makefile.uk
+#
+#  Authors: Felipe Huici <felipe.huici@neclab.eu>
+#           Gaulthier Gain <gaulthier.gain@uliege.be>
+#           Alexander Jung <alexander.jung@neclab.eu>
+#
+#  Copyright (c) 2017, NEC Europe Ltd., NEC Corporation. All rights reserved.
+#
+#  Redistribution and use in source and binary forms, with or without
+#  modification, are permitted provided that the following conditions
+#  are met:
+#
+#  1. Redistributions of source code must retain the above copyright
+#     notice, this list of conditions and the following disclaimer.
+#  2. Redistributions in binary form must reproduce the above copyright
+#     notice, this list of conditions and the following disclaimer in the
+#     documentation and/or other materials provided with the distribution.
+#  3. Neither the name of the copyright holder nor the names of its
+#     contributors may be used to endorse or promote products derived from
+#     this software without specific prior written permission.
+#
+#  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+#  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+#  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+#  ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+#  LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+#  CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+#  SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+#  INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+#  CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+#  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+#  POSSIBILITY OF SUCH DAMAGE.
+#
+
+################################################################################
+# This will reserve space within `uk_tls` for the pthread structure in Musl.
+# Please refer to ./arch/Makefile.rules for more details.
+# For this version of Musl the size of "struct pthread" is 200.
+################################################################################
+ifeq ($(CONFIG_LIBMUSL),y)
+$(eval $(call ukarch_tls_tcb_reserve,200))
+endif
+
+################################################################################
+# On aarch64, newer versions of musl no longer expect a 16-byte reserved block
+# at the end of the TCB. See: https://www.openwall.com/lists/musl/2018/06/01/14
+################################################################################
+ifeq ($(CONFIG_LIBMUSL),y)
+ifeq (arm64,$(CONFIG_UK_ARCH))
+$(eval $(call aarch64_no_reserved_tcb_overlap))
+endif
+endif
+
+################################################################################
+# Library registration
+################################################################################
+$(eval $(call addlib_s,libmusl,$(CONFIG_LIBMUSL)))
+
+# Additionally, build glue code. This is put into a separate library so that we
+# can apply a thick helping of warning suppressions to musl, which throws
+# lots of compilation warnings, but keep our glue code up to our standards.
+$(eval $(call addlib_s,libmuslglue,$(CONFIG_LIBMUSL)))
+
+################################################################################
+# Sources
+################################################################################
+LIBMUSL_VERSION=1.2.3
+LIBMUSL_URL=https://www.musl-libc.org/releases/musl-$(LIBMUSL_VERSION).tar.gz
+LIBMUSL_PATCHDIR=$(LIBMUSL_BASE)/patches
+$(eval $(call fetch,libmusl,$(LIBMUSL_URL)))
+$(eval $(call patch,libmusl,$(LIBMUSL_PATCHDIR),musl-$(LIBMUSL_VERSION)))
+
+################################################################################
+# Helpers
+################################################################################
+LIBMUSL_SUBDIR=musl-$(LIBMUSL_VERSION)
+LIBMUSL=$(LIBMUSL_ORIGIN)/$(LIBMUSL_SUBDIR)/
+
+# Additional macros for musl sub-libraries
+include $(LIBMUSL_BASE)/Makefile.rules
+
+################################################################################
+# Library includes
+################################################################################
+MUSL_ARCH = $(subst arm64,aarch64,$(ARCH))
+
+LIBMUSL_GLOBAL_INCLUDES-y   += -I$(LIBMUSL)/arch/$(MUSL_ARCH)
+LIBMUSL_GLOBAL_INCLUDES-y   += -I$(LIBMUSL)/arch/generic
+LIBMUSL_GLOBAL_INCLUDES-y   += -I$(LIBMUSL_BASE)/include
+
+# Newer versions of Musl define internal wrapper headers for implementing some
+# of the standard library headers (unistd.h, string.h etc.). These wrappers have exactly
+# the same name as their standard counterparts, and they must be included very early in
+# the include search path (i.e. before the CINCLUDES) for Musl source files. Due to how the
+# build system is set up (see support/build/Makefile.rules), the only way we can do this
+# is through the LIBMUSL_COMPFLAGS variable.
+LIBMUSL_COMPFLAGS-y += -I$(LIBMUSL)/arch/$(MUSL_ARCH)
+LIBMUSL_COMPFLAGS-y += -I$(LIBMUSL)/src/include
+LIBMUSL_COMPFLAGS-y += -I$(LIBMUSL)/src/internal
+
+CINCLUDES-$(CONFIG_LIBMUSL)    += $(LIBMUSL_GLOBAL_INCLUDES-y)
+CXXINCLUDES-$(CONFIG_LIBMUSL)  += $(LIBMUSL_GLOBAL_INCLUDES-y)
+
+################################################################################
+# Musl-specific Targets
+################################################################################
+# generate alltypes.h through musl sed script
+$(LIBMUSL)/arch/$(MUSL_ARCH)/bits/alltypes.h: $(LIBMUSL_BUILD)/.patched
+	$(call verbose_cmd,CONFIGURE,libmusl: $(notdir $@),\
+		sed -f $(LIBMUSL)/tools/mkalltypes.sed \
+		$(LIBMUSL)/arch/$(MUSL_ARCH)/bits/alltypes.h.in \
+		$(LIBMUSL)/include/alltypes.h.in > $@ && \
+		$(TOUCH) $@)
+
+# generate version.h
+$(LIBMUSL)/src/internal/version.h: $(LIBMUSL_BUILD)/.origin
+	$(call verbose_cmd,CONFIGURE,libmusl: $(notdir $@),\
+		printf '#define VERSION "%s"\n' "$$(cd $(LIBMUSL); sh tools/version.sh)" > $@ && \
+		$(TOUCH) $@)
+
+UK_PREPARE += $(LIBMUSL)/arch/$(MUSL_ARCH)/bits/alltypes.h
+UK_PREPARE += $(LIBMUSL)/src/internal/version.h
+UK_PREPARE += $(LIBMUSL_BUILD)/.prepared
+
+LIBMUSL_CLEAN += $(LIBMUSL)/arch/$(MUSL_ARCH)/bits/alltypes.h
+LIBMUSL_CLEAN += $(LIBMUSL)/src/internal/version.h
+
+################################################################################
+# Global flags
+################################################################################
+LIBMUSL_HDRS_FLAGS-y += -Wno-unused-parameter
+LIBMUSL_HDRS_FLAGS-y += -Wno-parentheses
+LIBMUSL_HDRS_FLAGS-y += -Wno-builtin-macro-redefined
+
+LIBMUSL_CFLAGS-y += -Wno-implicit-fallthrough
+LIBMUSL_CFLAGS-$(call have_gcc) += -Wno-restrict
+LIBMUSL_CFLAGS-$(call have_gcc) += -Wno-unused-but-set-variable
+LIBMUSL_CFLAGS-y += -Wno-sign-compare
+LIBMUSL_CFLAGS-y += -Wno-empty-body
+LIBMUSL_CFLAGS-$(call have_gcc) += -Wno-maybe-uninitialized
+LIBMUSL_CFLAGS-y += -Wno-unknown-pragmas
+LIBMUSL_CFLAGS-y += -Wno-missing-braces
+LIBMUSL_CFLAGS-$(call gcc_version_ge,8,0) += -Wno-cast-function-type
+LIBMUSL_CFLAGS-$(call clang_version_ge,13,0) += -Wno-cast-function-type
+LIBMUSL_CFLAGS-$(call have_gcc) += -Wno-format-contains-nul
+LIBMUSL_CFLAGS-y += -Wno-type-limits
+LIBMUSL_CFLAGS-$(call have_clang) += -Wno-macro-redefined
+LIBMUSL_CFLAGS-$(call have_clang) += -Wno-string-plus-int
+LIBMUSL_CFLAGS-y += -Wno-unused
+LIBMUSL_CFLAGS-$(call have_gcc) += -Wno-old-style-declaration
+LIBMUSL_CFLAGS-$(call clang_version_ge,15,0) += -Wno-deprecated-non-prototype
+LIBMUSL_CFLAGS-y += -DUK_LIBC_SYSCALLS=0
+LIBMUSL_CFLAGS-y += -D_XOPEN_SOURCE=700
+LIBMUSL_CFLAGS-y += $(LIBMUSL_HDRS_FLAGS-y)
+LIBMUSL_ASFLAGS-y += -Wno-unused-command-line-argument
+
+# musl cannot rely on a libc library. Therefore, compile it as freestanding
+# code.
+LIBMUSL_CFLAGS-y += -ffreestanding
+
+# We globally switch off warnings that are caused by musl's public headers
+CFLAGS-$(CONFIG_LIBMUSL) += $(LIBMUSL_HDRS_FLAGS-y)
+CXXFLAGS-$(CONFIG_LIBMUSL) += $(LIBMUSL_HDRS_FLAGS-y)
+
+################################################################################
+# OS dependencies code - Glue between Unicore and musl
+################################################################################
+LIBMUSLGLUE_SRCS-y += $(LIBMUSL_BASE)/mem.c
+LIBMUSLGLUE_SRCS-y += $(LIBMUSL_BASE)/__uk_init_tls.c
+LIBMUSLGLUE_SRCS-y += $(LIBMUSL_BASE)/__uk_unmapself.c
+LIBMUSLGLUE_SRCS-y += $(LIBMUSL_BASE)/__set_thread_area.c
+LIBMUSLGLUE_SRCS-y += $(LIBMUSL_BASE)/arch/$(CONFIG_UK_ARCH)/__clone.S
+LIBMUSLGLUE_SRCS-$(CONFIG_LIBPOSIX_PROCESS_VFORK) += $(LIBMUSL_BASE)/arch/$(CONFIG_UK_ARCH)/vfork.S
+LIBMUSLGLUE_COMPFLAGS-y += -I$(LIBMUSL)/src/include
+LIBMUSLGLUE_COMPFLAGS-y += -I$(LIBMUSL)/src/internal
+LIBMUSLGLUE_CINCLUDES += -I$(LIBMUSL)/src/internal
+LIBMUSLGLUE_CFLAGS-y += -Wno-unused-value
+
+################################################################################
+# Core Standard Library
+################################################################################
+LIBMUSL_CORE_HDRS-y += $(LIBMUSL)/include/sys/types.h
+LIBMUSL_CORE_HDRS-y += $(LIBMUSL)/include/sys/param.h
+LIBMUSL_CORE_HDRS-y += $(LIBMUSL)/include/sys/time.h
+LIBMUSL_CORE_HDRS-y += $(LIBMUSL)/include/sys/mount.h
+LIBMUSL_CORE_HDRS-y += $(LIBMUSL)/include/sys/sysmacros.h
+LIBMUSL_CORE_HDRS-y += $(LIBMUSL)/include/sys/file.h
+LIBMUSL_CORE_HDRS-y += $(LIBMUSL)/include/alloca.h
+LIBMUSL_CORE_HDRS-y += $(LIBMUSL)/include/stdbool.h
+LIBMUSL_CORE_HDRS-y += $(LIBMUSL)/include/limits.h
+LIBMUSL_CORE_HDRS-y += $(LIBMUSL)/include/features.h
+LIBMUSL_CORE_HDRS-y += $(LIBMUSL)/include/assert.h
+LIBMUSL_CORE_HDRS-y += $(LIBMUSL)/include/sysexits.h
+
+$(eval $(call _libmusl_import_lib,core,$(LIBMUSL_CORE_HDRS-y),$(LIBMUSL_CORE_SRCS-y)))
+
+################################################################################
+# musl code -- one external Makefile per sub-lib
+################################################################################
+ifeq ($(CONFIG_LIBMUSL_MQ),y)
+include $(LIBMUSL_BASE)/Makefile.uk.musl.mq
+endif
+ifeq ($(CONFIG_LIBMUSL_DIRENT),y)
+include $(LIBMUSL_BASE)/Makefile.uk.musl.dirent
+endif
+ifeq ($(CONFIG_LIBMUSL_MISC),y)
+include $(LIBMUSL_BASE)/Makefile.uk.musl.misc
+endif
+ifeq ($(CONFIG_LIBMUSL_TEMP),y)
+include $(LIBMUSL_BASE)/Makefile.uk.musl.temp
+endif
+ifeq ($(CONFIG_LIBMUSL_MULTIBYTE),y)
+include $(LIBMUSL_BASE)/Makefile.uk.musl.multibyte
+endif
+ifeq ($(CONFIG_LIBMUSL_PROCESS),y)
+include $(LIBMUSL_BASE)/Makefile.uk.musl.process
+endif
+ifeq ($(CONFIG_LIBMUSL_MMAN),y)
+include $(LIBMUSL_BASE)/Makefile.uk.musl.mman
+endif
+ifeq ($(CONFIG_LIBMUSL_STDLIB),y)
+include $(LIBMUSL_BASE)/Makefile.uk.musl.stdlib
+endif
+ifeq ($(CONFIG_LIBMUSL_FCNTL),y)
+include $(LIBMUSL_BASE)/Makefile.uk.musl.fcntl
+endif
+ifeq ($(CONFIG_LIBMUSL_STDIO),y)
+include $(LIBMUSL_BASE)/Makefile.uk.musl.stdio
+endif
+ifeq ($(CONFIG_LIBMUSL_CONF),y)
+include $(LIBMUSL_BASE)/Makefile.uk.musl.conf
+endif
+ifeq ($(CONFIG_LIBMUSL_MATH),y)
+include $(LIBMUSL_BASE)/Makefile.uk.musl.math
+endif
+ifeq ($(CONFIG_LIBMUSL_AIO),y)
+include $(LIBMUSL_BASE)/Makefile.uk.musl.aio
+endif
+ifeq ($(CONFIG_LIBMUSL_STAT),y)
+include $(LIBMUSL_BASE)/Makefile.uk.musl.stat
+endif
+ifeq ($(CONFIG_LIBMUSL_SEARCH),y)
+include $(LIBMUSL_BASE)/Makefile.uk.musl.search
+endif
+ifeq ($(CONFIG_LIBMUSL_CRYPT),y)
+include $(LIBMUSL_BASE)/Makefile.uk.musl.crypt
+endif
+ifeq ($(CONFIG_LIBMUSL_SELECT),y)
+include $(LIBMUSL_BASE)/Makefile.uk.musl.select
+endif
+ifeq ($(CONFIG_LIBMUSL_MALLOC),y)
+include $(LIBMUSL_BASE)/Makefile.uk.musl.malloc
+endif
+ifeq ($(CONFIG_LIBMUSL_UNISTD),y)
+include $(LIBMUSL_BASE)/Makefile.uk.musl.unistd
+endif
+ifeq ($(CONFIG_LIBMUSL_SIGNAL),y)
+include $(LIBMUSL_BASE)/Makefile.uk.musl.signal
+endif
+ifeq ($(CONFIG_LIBMUSL_THREAD),y)
+include $(LIBMUSL_BASE)/Makefile.uk.musl.thread
+endif
+ifeq ($(CONFIG_LIBMUSL_LEGACY),y)
+include $(LIBMUSL_BASE)/Makefile.uk.musl.legacy
+endif
+ifeq ($(CONFIG_LIBMUSL_ENV),y)
+include $(LIBMUSL_BASE)/Makefile.uk.musl.env
+endif
+ifeq ($(CONFIG_LIBMUSL_TIME),y)
+include $(LIBMUSL_BASE)/Makefile.uk.musl.time
+endif
+ifeq ($(CONFIG_LIBMUSL_ERRNO),y)
+include $(LIBMUSL_BASE)/Makefile.uk.musl.errno
+endif
+ifeq ($(CONFIG_LIBMUSL_IPC),y)
+include $(LIBMUSL_BASE)/Makefile.uk.musl.ipc
+endif
+ifeq ($(CONFIG_LIBMUSL_PRNG),y)
+include $(LIBMUSL_BASE)/Makefile.uk.musl.prng
+endif
+ifeq ($(CONFIG_LIBMUSL_LDSO),y)
+include $(LIBMUSL_BASE)/Makefile.uk.musl.ldso
+endif
+ifeq ($(CONFIG_LIBMUSL_PASSWD),y)
+include $(LIBMUSL_BASE)/Makefile.uk.musl.passwd
+endif
+ifeq ($(CONFIG_LIBMUSL_FENV),y)
+include $(LIBMUSL_BASE)/Makefile.uk.musl.fenv
+endif
+ifeq ($(CONFIG_LIBMUSL_CTYPE),y)
+include $(LIBMUSL_BASE)/Makefile.uk.musl.ctype
+endif
+ifeq ($(CONFIG_LIBMUSL_LINUX),y)
+include $(LIBMUSL_BASE)/Makefile.uk.musl.linux
+endif
+ifeq ($(CONFIG_LIBMUSL_INTERNAL),y)
+include $(LIBMUSL_BASE)/Makefile.uk.musl.internal
+endif
+ifeq ($(CONFIG_LIBMUSL_NETWORK),y)
+include $(LIBMUSL_BASE)/Makefile.uk.musl.network
+endif
+ifeq ($(CONFIG_LIBMUSL_SCHED),y)
+include $(LIBMUSL_BASE)/Makefile.uk.musl.sched
+endif
+ifeq ($(CONFIG_LIBMUSL_STRING),y)
+include $(LIBMUSL_BASE)/Makefile.uk.musl.string
+endif
+ifeq ($(CONFIG_LIBMUSL_REGEX),y)
+include $(LIBMUSL_BASE)/Makefile.uk.musl.regex
+endif
+ifeq ($(CONFIG_LIBMUSL_TERMIOS),y)
+include $(LIBMUSL_BASE)/Makefile.uk.musl.termios
+endif
+ifeq ($(CONFIG_LIBMUSL_EXIT),y)
+include $(LIBMUSL_BASE)/Makefile.uk.musl.exit
+endif
+ifeq ($(CONFIG_LIBMUSL_SETJMP),y)
+include $(LIBMUSL_BASE)/Makefile.uk.musl.setjmp
+endif
+ifeq ($(CONFIG_LIBMUSL_LOCALE),y)
+include $(LIBMUSL_BASE)/Makefile.uk.musl.locale
+endif
+ifeq ($(CONFIG_LIBMUSL_COMPLEX),y)
+include $(LIBMUSL_BASE)/Makefile.uk.musl.complex
+endif

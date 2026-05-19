@@ -1,0 +1,35 @@
+LIBMUSL_INTERNAL_HDRS-y += $(LIBMUSL)/include/ctype.h
+LIBMUSL_INTERNAL_HDRS-y += $(LIBMUSL)/include/elf.h
+LIBMUSL_INTERNAL_HDRS-y += $(LIBMUSL)/include/errno.h
+LIBMUSL_INTERNAL_HDRS-y += $(LIBMUSL)/include/features.h
+LIBMUSL_INTERNAL_HDRS-y += $(LIBMUSL)/include/float.h
+LIBMUSL_INTERNAL_HDRS-y += $(LIBMUSL)/src/internal/floatscan.h
+LIBMUSL_INTERNAL_HDRS-y += $(LIBMUSL)/src/internal/libc.h
+LIBMUSL_INTERNAL_HDRS-y += $(LIBMUSL)/include/limits.h
+LIBMUSL_INTERNAL_HDRS-y += $(LIBMUSL)/include/link.h
+LIBMUSL_INTERNAL_HDRS-y += $(LIBMUSL)/include/math.h
+LIBMUSL_INTERNAL_HDRS-y += $(LIBMUSL)/src/internal/shgetc.h
+LIBMUSL_INTERNAL_HDRS-y += $(LIBMUSL)/include/stdint.h
+LIBMUSL_INTERNAL_HDRS-y += $(LIBMUSL)/include/stdio.h
+LIBMUSL_INTERNAL_HDRS-y += $(LIBMUSL)/include/string.h
+LIBMUSL_INTERNAL_HDRS-y += $(LIBMUSL)/include/syscall.h
+
+
+LIBMUSL_INTERNAL_SRCS-y += $(LIBMUSL)/src/internal/defsysinfo.c
+LIBMUSL_INTERNAL_SRCS-y += $(LIBMUSL)/src/internal/floatscan.c
+LIBMUSL_INTERNAL_SRCS-y += $(LIBMUSL)/src/internal/intscan.c
+LIBMUSL_INTERNAL_SRCS-y += $(LIBMUSL)/src/internal/libc.c
+LIBMUSL_INTERNAL_SRCS-y += $(LIBMUSL)/src/internal/procfdname.c
+LIBMUSL_INTERNAL_SRCS-y += $(LIBMUSL)/src/internal/shgetc.c
+LIBMUSL_INTERNAL_SRCS-y += $(LIBMUSL)/src/internal/syscall_ret.c
+LIBMUSL_INTERNAL_SRCS-y += $(LIBMUSL)/src/internal/vdso.c
+LIBMUSL_INTERNAL_SRCS-y += $(LIBMUSL)/src/internal/version.c
+
+
+#ifeq (arm,$(CONFIG_UK_ARCH))
+#else ifeq (x86_32,$(CONFIG_UK_ARCH))
+#else ifeq (x86_64,$(CONFIG_UK_ARCH))
+#endif
+
+
+$(eval $(call _libmusl_import_lib,internal,$(LIBMUSL_INTERNAL_HDRS-y),$(LIBMUSL_INTERNAL_SRCS-y)))
