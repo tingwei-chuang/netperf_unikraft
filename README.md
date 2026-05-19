@@ -65,8 +65,10 @@ netperf_unikraft/
 │   ├── Makefile, Makefile.uk
 │   ├── Config.uk                       <-- Kconfig (deps, OMNI toggle)
 │   ├── netperf.defconfig               <-- x86_64 build config
+│   ├── netperf.vsock.defconfig         <-- x86_64 vsock build config
 │   ├── netperf.arm64.defconfig         <-- arm64 cross-compile build config
 │   ├── glue.c                          <-- owns main(), calls netserver_main()
+│   ├── netperf_vsock.sh                <-- vsock QEMU runner (x86_64)
 │   ├── exportsyms.uk
 │   ├── include/
 │   │   ├── config.h                    <-- autoconf shim for netperf
@@ -139,6 +141,12 @@ make olddefconfig
 make -j$(nproc)
 # image: build/netperf_qemu-x86_64
 
+# x86_64 build with vsock backend:
+cp netperf.vsock.defconfig .config
+make olddefconfig
+make -j$(nproc)
+# image: build/netperf_qemu-x86_64
+
 # Or — arm64 cross-compile from an x86_64 host:
 cp netperf.arm64.defconfig .config
 make olddefconfig CROSS_COMPILE=aarch64-linux-gnu-
@@ -202,6 +210,32 @@ qemu-system-x86_64 -display none -no-reboot -nographic \
 netperf -H 127.0.0.1 -p 20003 -t TCP_STREAM -l 10 -- -m 1024 -P ,12866
 ```
 
+## Vsock mode (host ↔ guest)
+
+The vsock-enabled build swaps IPv4 stream sockets for AF_VSOCK internally.
+Use the dedicated defconfig and a vsock device in QEMU.
+
+```bash
+cd apps/netperf
+cp netperf.vsock.defconfig .config
+make olddefconfig
+make -j$(nproc)
+
+./netperf_vsock.sh
+```
+
+`netperf_vsock.sh` uses guest CID **3**. Change `guest-cid=` if you need a
+different value (host CID is always 2).
+
+On the host, bridge the TCP netperf client to the guest vsock port:
+
+```bash
+sudo apt-get install -y socat
+socat TCP-LISTEN:12865,reuseaddr,fork VSOCK-CONNECT:3:12865
+
+netperf -H 127.0.0.1 -p 12865 -t TCP_STREAM -l 10 -- -m 1024
+```
+
 ## Required build features
 
 The two defconfigs share the same set of feature flags; only the
@@ -211,6 +245,8 @@ arch/platform/CPU options differ. The non-obvious entries:
 | -------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
 | `CONFIG_APPNETPERF_USE_OMNI=y`         | Enables the OMNI test engine (TCP_STREAM, TCP_RR, UDP_*, etc.). Without it only legacy BSD tests build.    |
 | `CONFIG_LIBVIRTIO_NET=y`               | virtio-net driver.                                                                                         |
+| `CONFIG_LIBUKVSOCKDEV=y`               | Enables the vsock device abstraction (required for AF_VSOCK).                                              |
+| `CONFIG_LIBVIRTIO_VSOCK=y`             | Virtio vsock transport for host↔guest communication.                                                       |
 | `CONFIG_LIBLWIP=y` + `LWIP_*`          | TCP/IP stack, IPv4, UDP, DHCP, sockets, threads, uknetdev glue.                                            |
 | `CONFIG_LIBUKNETDEV_EINFO_LIBPARAM=y`  | Required for `netdev.ip=<cidr>:<gw>` cmdline param. Without it cmdline IP is silently ignored — fatal on tap0 where there is no DHCP server. |
 | `CONFIG_LIBUKRANDOM_LCPU=y`            | Auto-seed the CSPRNG. On x86_64 the driver uses RDRAND/RDSEED; on arm64 it uses Armv8.5-A RNDR/RNDRRS (`HAVE_ARM64_FEAT_RNG` is auto-selected and bumps `-march` to `armv8.5-a+rng`). Requires `-cpu max` (or KVM with a CPU that exposes the feature). |
@@ -255,13 +291,13 @@ as `.uk_inittab4__UK_PRIO_AFTER___UK_PRIO_AFTER_UK_FS_PRIO_FSAVAIL` — which
 the linker never merges into the `.uk_inittab` block, so the init function
 is never called.
 
-**Fix.** Replace the macro chain with literal numeric priorities.
+**Fix.** Replace `UK_FS_PRIO_FSAVAIL` with a literal numeric priority so the
+section name is emitted correctly.
 
-Files changed:
-- `unikraft/lib/posix-tty/tty.c` — `uk_rootfs_initcall_prio(init_posix_tty, 0x0, 4)`
-- `unikraft/lib/posix-tty/serial.c` — `uk_rootfs_initcall_prio(init_tty_cons, 0x0, 3)` and `(…, 2)`
+File changed:
+- `unikraft/lib/posix-tty/tty.c` — `uk_rootfs_initcall_prio(init_posix_tty, 0x0, 2)`
 
-Both files leave an explanatory comment above each call so the workaround is
+The file leaves an explanatory comment above the call so the workaround is
 discoverable.
 
 ### Bug 2 — lwIP `RECV_BUFSIZE_DEFAULT = INT_MAX`
