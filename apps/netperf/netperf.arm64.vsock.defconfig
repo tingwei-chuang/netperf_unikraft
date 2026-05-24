@@ -1,0 +1,55 @@
+# Arm64 (AArch64) + vsock build configuration for netperf-unikraft.
+#
+# Same as netperf.arm64.defconfig but with the vsock transport enabled. The
+# vsock-enabled Unikraft kernel's posix-socket layer transparently rewrites
+# every AF_INET SOCK_STREAM socket into AF_VSOCK, so the netperf application
+# sources are unchanged.
+#
+# vsock MUST go over virtio-mmio: virtio-vsock is a modern-only virtio device
+# and Unikraft's virtio-pci driver is legacy-only. virtio-net stays on PCI.
+#
+# Build with apps/netperf/build_vsock.sh (cross-compiles with
+# aarch64-linux-gnu-). Image lands at build-vsock/netperf_qemu-arm64.
+
+CONFIG_ARCH_ARM_64=y
+
+# Target QEMU virt (`-machine virt`). KVM_VMM_QEMU auto-implies the PL011
+# UART, the GICv2 interrupt controller, and the PL031 RTC.
+CONFIG_PLAT_KVM=y
+CONFIG_KVM_VMM_QEMU=y
+CONFIG_KVM_BOOT_PROTO_LXBOOT=y
+
+CONFIG_MCPU_ARM64_GENERIC=y
+
+CONFIG_LIBMUSL=y
+CONFIG_LIBVIRTIO_NET=y
+
+# vsock transport. virtio-vsock is modern-only so it rides virtio-mmio (the
+# QEMU virt board exposes virtio-mmio slots described in the FDT).
+CONFIG_LIBUKVSOCKDEV=y
+CONFIG_LIBVIRTIO_VSOCK=y
+CONFIG_LIBVIRTIO_MMIO=y
+
+# Allow IPv4 to be configured from the kernel cmdline via
+#   netdev.ip=<cidr>[:<gw>[:<dns0>[:<dns1>[:<hostname>[:<domain>]]]]]
+CONFIG_LIBUKNETDEV_EINFO_LIBPARAM=y
+
+CONFIG_LIBLWIP=y
+CONFIG_LWIP_IPV4=y
+CONFIG_LWIP_UDP=y
+CONFIG_LWIP_TCP=y
+CONFIG_LWIP_DHCP=y
+CONFIG_LWIP_SOCKET=y
+CONFIG_LWIP_THREADS=y
+CONFIG_LWIP_UKNETDEV=y
+CONFIG_LIBUKSCHEDCOOP=y
+CONFIG_LIBUKMMAP=y
+CONFIG_APPNETPERF_USE_OMNI=y
+
+# Auto-seed the CSPRNG using Armv8.5-A FEAT_RNG (RNDR/RNDRRS); exposed by
+# QEMU TCG with `-cpu max`. CMDLINE_SEED kept as a manual fallback.
+CONFIG_LIBUKRANDOM_LCPU=y
+CONFIG_LIBUKRANDOM_CMDLINE_SEED=y
+
+CONFIG_LIBUKPRINT_KLVL_INFO=y
+CONFIG_LIBPOSIX_POLL=y

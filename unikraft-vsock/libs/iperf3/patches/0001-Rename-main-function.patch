@@ -1,0 +1,25 @@
+From 0a5cfef3396ecfdeb226055fb5bb5139d7ed5d24 Mon Sep 17 00:00:00 2001
+From: pooiscoding <pooisworking@gmail.com>
+Date: Fri, 19 Sep 2025 17:27:35 +0800
+Subject: [PATCH] Rename-main-function
+
+---
+ src/main.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/main.c b/src/main.c
+index 708fd4f..718b368 100644
+--- a/src/main.c
++++ b/src/main.c
+@@ -53,7 +53,7 @@ static int run(struct iperf_test *test);
+ 
+ /**************************************************************************/
+ int
+-main(int argc, char **argv)
++iperf3_main(int argc, char **argv)
+ {
+     struct iperf_test *test;
+ 
+-- 
+2.51.0
+

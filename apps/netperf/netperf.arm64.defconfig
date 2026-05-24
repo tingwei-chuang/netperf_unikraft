@@ -1,0 +1,57 @@
+# Arm64 (AArch64) build configuration for netperf-unikraft.
+#
+# Cross-compile from an x86_64 host with:
+#
+#     cd apps/netperf
+#     cp netperf.arm64.defconfig .config
+#     make olddefconfig CROSS_COMPILE=aarch64-linux-gnu-
+#     make CROSS_COMPILE=aarch64-linux-gnu- -j$(nproc)
+#
+# Image lands at build/netperf_qemu-arm64.
+
+CONFIG_ARCH_ARM_64=y
+
+# Target QEMU virt (`-machine virt`). KVM_VMM_QEMU auto-implies the PL011
+# UART, the GICv2 interrupt controller, and the PL031 RTC, which is the full
+# set of devices the QEMU virt board exposes.
+CONFIG_PLAT_KVM=y
+CONFIG_KVM_VMM_QEMU=y
+CONFIG_KVM_BOOT_PROTO_LXBOOT=y
+
+# Generic Armv8 CPU. LIBUKRANDOM_LCPU selected below bumps -march up to
+# armv8.5-a+rng automatically (see arch/arm/arm64/Makefile.uk), so this is
+# only a baseline.
+CONFIG_MCPU_ARM64_GENERIC=y
+
+CONFIG_LIBMUSL=y
+CONFIG_LIBVIRTIO_NET=y
+
+# Allow IPv4 to be configured from the kernel cmdline via
+#   netdev.ip=<cidr>[:<gw>[:<dns0>[:<dns1>[:<hostname>[:<domain>]]]]]
+# Needed for tap0 benchmarking where there is no host-side DHCP server.
+CONFIG_LIBUKNETDEV_EINFO_LIBPARAM=y
+
+CONFIG_LIBLWIP=y
+CONFIG_LWIP_IPV4=y
+CONFIG_LWIP_UDP=y
+CONFIG_LWIP_TCP=y
+CONFIG_LWIP_DHCP=y
+CONFIG_LWIP_SOCKET=y
+CONFIG_LWIP_THREADS=y
+CONFIG_LWIP_UKNETDEV=y
+CONFIG_LIBUKSCHEDCOOP=y
+CONFIG_LIBUKMMAP=y
+CONFIG_APPNETPERF_USE_OMNI=y
+
+# Auto-seed the CSPRNG using the Armv8.5-A FEAT_RNG instructions (RNDR /
+# RNDRRS). The driver selects HAVE_ARM64_FEAT_RNG, which causes the arm64
+# Makefile to compile with `-march=armv8.5-a+rng`. Requires a CPU that
+# advertises FEAT_RNG; with QEMU TCG this is exposed by `-cpu max`.
+CONFIG_LIBUKRANDOM_LCPU=y
+
+# Manual override / fallback: pass `random.seed=[0xXX ...]` on the cmdline
+# for CPUs that don't expose FEAT_RNG (e.g. KVM on older Arm hosts).
+CONFIG_LIBUKRANDOM_CMDLINE_SEED=y
+
+CONFIG_LIBUKPRINT_KLVL_INFO=y
+CONFIG_LIBPOSIX_POLL=y

@@ -1,0 +1,65 @@
+################################################################################
+# Library registration
+################################################################################
+$(eval $(call addlib_s,libiperf3,$(CONFIG_LIBIPERF3)))
+
+################################################################################
+# Original sources
+################################################################################
+LIBIPERF3_VERSION=3.19.1
+LIBIPERF3_BASENAME=iperf-$(LIBIPERF3_VERSION)
+LIBIPERF3_URL=https://github.com/esnet/iperf/archive/refs/tags/$(LIBIPERF3_VERSION).tar.gz
+LIBIPERF3_PATCHDIR = $(LIBIPERF3_BASE)/patches
+
+$(eval $(call fetch,libiperf3,$(LIBIPERF3_URL)))
+$(eval $(call patch,libiperf3,$(LIBIPERF3_PATCHDIR),iperf-$(LIBIPERF3_VERSION)))
+
+################################################################################
+# Helpers
+################################################################################
+LIBIPERF3_SRC = $(LIBIPERF3_ORIGIN)/$(LIBIPERF3_BASENAME)/src
+
+################################################################################
+# Sources
+################################################################################
+LIBIPERF3_SRCS-$(CONFIG_LIBIPERF3_MAIN_FUNCTION) += $(LIBIPERF3_BASE)/main.c|unikraft
+
+################################################################################
+# Library includes
+################################################################################
+CINCLUDES-$(CONFIG_LIBIPERF3) += -I$(LIBIPERF3_BASE)/include/unikraft
+
+LIBIPERF3_CINCLUDES-y += -I$(LIBIPERF3_BASE)/include/iperf3
+
+################################################################################
+# Flags
+################################################################################
+LIBIPERF3_FLAGS =
+
+# Suppress some warnings to make the build process look neater
+LIBIPERF3_FLAGS_SUPPRESS = -Wno-unused-parameter \
+						   -Wno-unused-variable	\
+						   -Wno-unused-but-set-variable \
+						   -Wno-unused-value \
+						   -Wno-sign-compare \
+						   -Wno-implicit-fallthrough
+
+LIBIPERF3_CFLAGS-y += $(LIBIPERF3_FLAGS)
+LIBIPERF3_CFLAGS-y += $(LIBIPERF3_FLAGS_SUPPRESS)
+
+LIBIPERF3_SRCS-y += $(LIBIPERF3_SRC)/main.c
+LIBIPERF3_SRCS-y += $(LIBIPERF3_SRC)/cjson.c
+LIBIPERF3_SRCS-y += $(LIBIPERF3_SRC)/iperf_api.c
+LIBIPERF3_SRCS-y += $(LIBIPERF3_SRC)/iperf_error.c
+LIBIPERF3_SRCS-y += $(LIBIPERF3_SRC)/iperf_server_api.c
+LIBIPERF3_SRCS-y += $(LIBIPERF3_SRC)/iperf_client_api.c
+LIBIPERF3_SRCS-y += $(LIBIPERF3_SRC)/iperf_util.c
+LIBIPERF3_SRCS-y += $(LIBIPERF3_SRC)/iperf_time.c
+LIBIPERF3_SRCS-y += $(LIBIPERF3_SRC)/iperf_locale.c
+LIBIPERF3_SRCS-y += $(LIBIPERF3_SRC)/iperf_tcp.c
+LIBIPERF3_SRCS-y += $(LIBIPERF3_SRC)/units.c
+LIBIPERF3_SRCS-y += $(LIBIPERF3_SRC)/timer.c
+LIBIPERF3_SRCS-y += $(LIBIPERF3_SRC)/iperf_udp.c
+LIBIPERF3_SRCS-y += $(LIBIPERF3_SRC)/tcp_info.c
+LIBIPERF3_SRCS-y += $(LIBIPERF3_SRC)/net.c
+LIBIPERF3_SRCS-y += $(LIBIPERF3_SRC)/dscp.c

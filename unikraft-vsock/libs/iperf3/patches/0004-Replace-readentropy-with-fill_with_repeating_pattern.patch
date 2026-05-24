@@ -1,0 +1,52 @@
+From a288c4937f82c544078748b1cd094203472aba64 Mon Sep 17 00:00:00 2001
+From: pooiscoding <pooisworking@gmail.com>
+Date: Fri, 19 Sep 2025 20:55:38 +0800
+Subject: [PATCH] Replace-readentropy-with-fill_with_repeating_pattern
+
+---
+ src/iperf_util.c | 22 ++++------------------
+ 1 file changed, 4 insertions(+), 18 deletions(-)
+
+diff --git a/src/iperf_util.c b/src/iperf_util.c
+index b5c661b..7136d2c 100644
+--- a/src/iperf_util.c
++++ b/src/iperf_util.c
+@@ -50,6 +50,8 @@
+ #include "iperf.h"
+ #include "iperf_api.h"
+ 
++
++void fill_with_repeating_pattern(void *out, size_t outsize);
+ /*
+  * Read entropy from /dev/urandom
+  * Errors are fatal.
+@@ -57,24 +59,8 @@
+  */
+ int readentropy(void *out, size_t outsize)
+ {
+-    static FILE *frandom;
+-    static const char rndfile[] = "/dev/urandom";
+-
+-    if (!outsize) return 0;
+-
+-    if (frandom == NULL) {
+-        frandom = fopen(rndfile, "rb");
+-        if (frandom == NULL) {
+-            iperf_errexit(NULL, "error - failed to open %s: %s\n",
+-                          rndfile, strerror(errno));
+-        }
+-        setbuf(frandom, NULL);
+-    }
+-    if (fread(out, 1, outsize, frandom) != outsize) {
+-        iperf_errexit(NULL, "error - failed to read %s: %s\n",
+-                      rndfile,
+-                      feof(frandom) ? "EOF" : strerror(errno));
+-    }
++#warning "WARNING: readentropy() is not support, fill_with_repeating_pattern() is used instead (see lib-iperf3/patches)."
++    fill_with_repeating_pattern(out, outsize);
+     return 0;
+ }
+ 
+-- 
+2.51.0
+

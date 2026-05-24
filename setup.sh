@@ -9,8 +9,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 
 # Pinned upstream commits. Bump after re-testing.
-UNIKRAFT_REPO=https://github.com/unikraft/unikraft.git
-UNIKRAFT_SHA=f6f00b2d9cf4826ed9729bb62738947f82bf1f6e
+UNIKRAFT_REPO=https://github.com/NatsuCamellia/unikraft.git
+# vsock branch head (see unikraft-vsock/.gitmodules)
+UNIKRAFT_SHA=bea08b49ae0c0dace15a34eaeb3c61e739cb3b02
 
 LWIP_REPO=https://github.com/unikraft/lib-lwip.git
 LWIP_SHA=ec55ae17618feeb57c8c10109bcf5c42723e8e95
@@ -25,12 +26,20 @@ clone_pinned() {
     local repo="$1" sha="$2" dest="$3"
     if [[ -d "$dest/.git" ]]; then
         echo "[skip clone] $dest already present"
+        local current_url
+        current_url="$(git -C "$dest" remote get-url origin 2>/dev/null || true)"
+        if [[ -n "$current_url" && "$current_url" != "$repo" ]]; then
+            echo "[remote]     origin -> $repo"
+            git -C "$dest" remote set-url origin "$repo"
+        fi
     else
         echo "[clone]      $repo -> $dest"
         git clone --quiet "$repo" "$dest"
     fi
     echo "[checkout]   $dest @ ${sha:0:10}"
     git -C "$dest" fetch --quiet origin "$sha" 2>/dev/null || true
+    git -C "$dest" reset --quiet --hard
+    git -C "$dest" clean --quiet -fdx
     git -C "$dest" checkout --quiet "$sha"
 }
 

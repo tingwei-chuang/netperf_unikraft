@@ -1,0 +1,34 @@
+menuconfig LIBIPERF3
+	bool "libiperf3 - iperf3 3.19.1"
+	default n
+	select LIBUKSCHEDCOOP
+	select LIBPOSIX_LIBDL
+	select LIBPOSIX_PROCESS
+	select LIBPOSIX_USER
+	select LIBPOSIX_SYSINFO
+	select LIBPOSIX_SOCKET
+	select LIBPOSIX_EVENT
+	imply LIBUKMMAP
+	select LIBUKTIME
+	select LIBUKSIGNAL
+	select LIBMUSL
+	select LIBLWIP
+	select LWIP_UKNETDEV
+	select LWIP_TCP
+	select LWIP_WND_SCALE
+	select LWIP_TCP_KEEPALIVE
+	select LWIP_THREADS
+	select LWIP_SOCKET
+	select LWIP_AUTOIFACE
+	select LWIP_IPV4
+	select LWIP_DHCP
+	select LWIP_DNS
+	select LIBPTHREAD_EMBEDDED
+
+if LIBIPERF3
+
+config LIBIPERF3_MAIN_FUNCTION
+	bool "Provide main function"
+	default n
+
+endif

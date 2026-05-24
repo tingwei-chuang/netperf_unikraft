@@ -1,0 +1,10 @@
+[submodule "unikraft"]
+	path = unikraft
+	url = git@github.com:NatsuCamellia/unikraft.git
+	branch = vsock
+[submodule "libs/lwip"]
+	path = libs/lwip
+	url = git@github.com:unikraft/lib-lwip.git
+[submodule "libs/musl"]
+	path = libs/musl
+	url = git@github.com:unikraft/lib-musl.git

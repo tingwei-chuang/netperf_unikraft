@@ -1,0 +1,79 @@
+LIBMUSL_SIGNAL_HDRS-y += $(LIBMUSL)/include/errno.h
+LIBMUSL_SIGNAL_HDRS-y += $(LIBMUSL)/include/features.h
+LIBMUSL_SIGNAL_HDRS-y += $(LIBMUSL)/src/internal/ksigaction.h
+LIBMUSL_SIGNAL_HDRS-y += $(LIBMUSL)/src/internal/libc.h
+LIBMUSL_SIGNAL_HDRS-y += $(LIBMUSL)/include/limits.h
+LIBMUSL_SIGNAL_HDRS-y += $(LIBMUSL)/src/internal/lock.h
+LIBMUSL_SIGNAL_HDRS-y += $(LIBMUSL)/src/internal/pthread_impl.h
+LIBMUSL_SIGNAL_HDRS-y += $(LIBMUSL)/include/setjmp.h
+LIBMUSL_SIGNAL_HDRS-y += $(LIBMUSL)/include/signal.h
+LIBMUSL_SIGNAL_HDRS-y += $(LIBMUSL)/include/stdint.h
+LIBMUSL_SIGNAL_HDRS-y += $(LIBMUSL)/src/internal/stdio_impl.h
+LIBMUSL_SIGNAL_HDRS-y += $(LIBMUSL)/include/string.h
+LIBMUSL_SIGNAL_HDRS-y += $(LIBMUSL)/include/syscall.h
+LIBMUSL_SIGNAL_HDRS-y += $(LIBMUSL)/include/sys/time.h
+LIBMUSL_SIGNAL_HDRS-y += $(LIBMUSL)/include/unistd.h
+
+ifeq (arm,$(ARCH))
+LIBMUSL_SIGNAL_HDRS-y += $(LIBMUSL)/arch/arm/bits/signal.h
+else ifeq (x86_32,$(ARCH))
+LIBMUSL_SIGNAL_HDRS-y += $(LIBMUSL)/arch/i386/bits/signal.h
+else ifeq (x86_64,$(ARCH))
+LIBMUSL_SIGNAL_HDRS-y += $(LIBMUSL)/arch/x86_64/bits/signal.h
+endif
+
+LIBMUSL_SIGNAL_SRCS-y += $(LIBMUSL)/src/signal/block.c
+LIBMUSL_SIGNAL_SRCS-y += $(LIBMUSL)/src/signal/getitimer.c
+LIBMUSL_SIGNAL_SRCS-y += $(LIBMUSL)/src/signal/kill.c
+LIBMUSL_SIGNAL_SRCS-y += $(LIBMUSL)/src/signal/killpg.c
+LIBMUSL_SIGNAL_SRCS-y += $(LIBMUSL)/src/signal/psiginfo.c
+LIBMUSL_SIGNAL_SRCS-y += $(LIBMUSL)/src/signal/psignal.c
+LIBMUSL_SIGNAL_SRCS-y += $(LIBMUSL)/src/signal/raise.c
+LIBMUSL_SIGNAL_SRCS-y += $(LIBMUSL)/src/signal/setitimer.c
+LIBMUSL_SIGNAL_SRCS-y += $(LIBMUSL)/src/signal/sigaction.c
+LIBMUSL_SIGNAL_SRCS-y += $(LIBMUSL)/src/signal/sigaddset.c
+LIBMUSL_SIGNAL_SRCS-y += $(LIBMUSL)/src/signal/sigaltstack.c
+LIBMUSL_SIGNAL_SRCS-y += $(LIBMUSL)/src/signal/sigandset.c
+LIBMUSL_SIGNAL_SRCS-y += $(LIBMUSL)/src/signal/sigdelset.c
+LIBMUSL_SIGNAL_SRCS-y += $(LIBMUSL)/src/signal/sigemptyset.c
+LIBMUSL_SIGNAL_SRCS-y += $(LIBMUSL)/src/signal/sigfillset.c
+LIBMUSL_SIGNAL_SRCS-y += $(LIBMUSL)/src/signal/sighold.c
+LIBMUSL_SIGNAL_SRCS-y += $(LIBMUSL)/src/signal/sigignore.c
+LIBMUSL_SIGNAL_SRCS-y += $(LIBMUSL)/src/signal/siginterrupt.c
+LIBMUSL_SIGNAL_SRCS-y += $(LIBMUSL)/src/signal/sigisemptyset.c
+LIBMUSL_SIGNAL_SRCS-y += $(LIBMUSL)/src/signal/sigismember.c
+LIBMUSL_SIGNAL_SRCS-y += $(LIBMUSL)/src/signal/siglongjmp.c
+LIBMUSL_SIGNAL_SRCS-y += $(LIBMUSL)/src/signal/signal.c
+LIBMUSL_SIGNAL_SRCS-y += $(LIBMUSL)/src/signal/sigorset.c
+LIBMUSL_SIGNAL_SRCS-y += $(LIBMUSL)/src/signal/sigpause.c
+LIBMUSL_SIGNAL_SRCS-y += $(LIBMUSL)/src/signal/sigpending.c
+LIBMUSL_SIGNAL_SRCS-y += $(LIBMUSL)/src/signal/sigprocmask.c
+LIBMUSL_SIGNAL_SRCS-y += $(LIBMUSL)/src/signal/sigqueue.c
+LIBMUSL_SIGNAL_SRCS-y += $(LIBMUSL)/src/signal/sigrelse.c
+LIBMUSL_SIGNAL_SRCS-y += $(LIBMUSL)/src/signal/sigrtmax.c
+LIBMUSL_SIGNAL_SRCS-y += $(LIBMUSL)/src/signal/sigrtmin.c
+LIBMUSL_SIGNAL_SRCS-y += $(LIBMUSL)/src/signal/sigset.c
+LIBMUSL_SIGNAL_SRCS-y += $(LIBMUSL)/src/signal/sigsetjmp_tail.c
+LIBMUSL_SIGNAL_SRCS-y += $(LIBMUSL)/src/signal/sigsuspend.c
+LIBMUSL_SIGNAL_SRCS-y += $(LIBMUSL)/src/signal/sigtimedwait.c
+LIBMUSL_SIGNAL_SRCS-y += $(LIBMUSL)/src/signal/sigwait.c
+LIBMUSL_SIGNAL_SRCS-y += $(LIBMUSL)/src/signal/sigwaitinfo.c
+
+ifeq (x86_32,$(CONFIG_UK_ARCH))
+LIBMUSL_SIGNAL_SRCS-y += $(LIBMUSL)/src/signal/i386/restore.s|i386
+LIBMUSL_SIGNAL_SRCS-y += $(LIBMUSL)/src/signal/i386/sigsetjmp.s|i386
+else ifeq (x86_64,$(CONFIG_UK_ARCH))
+LIBMUSL_SIGNAL_SRCS-y += $(LIBMUSL)/src/signal/x86_64/restore.s|x86_64
+LIBMUSL_SIGNAL_SRCS-y += $(LIBMUSL)/src/signal/x86_64/sigsetjmp.s|x86_64
+else ifeq (arm,$(CONFIG_UK_ARCH))
+LIBMUSL_SIGNAL_SRCS-y += $(LIBMUSL)/src/signal/arm/restore.s|arm
+LIBMUSL_SIGNAL_SRCS-y += $(LIBMUSL)/src/signal/arm/sigsetjmp.s|arm
+else ifeq (arm64,$(CONFIG_UK_ARCH))
+LIBMUSL_SIGNAL_SRCS-y += $(LIBMUSL)/src/signal/aarch64/restore.s|aarch64
+LIBMUSL_SIGNAL_SRCS-y += $(LIBMUSL)/src/signal/aarch64/sigsetjmp.s|aarch64
+else
+LIBMUSL_SIGNAL_SRCS-y += $(LIBMUSL)/src/signal/restore.c
+endif
+
+
+$(eval $(call _libmusl_import_lib,signal,$(LIBMUSL_SIGNAL_HDRS-y),$(LIBMUSL_SIGNAL_SRCS-y)))
