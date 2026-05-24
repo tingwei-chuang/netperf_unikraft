@@ -317,10 +317,15 @@ struct uk_file *uk_socket_create(int family, int type, int protocol)
 	uk_socket_evd_init(&al->evd, family, type, protocol);
 	uk_socket_event_raise(&al->evd, CREATE);
 
-	// if this is a IPv4 socket, we replace it with a VSOCK
+	// if this is a IPv4 socket, we replace it with a VSOCK.
+	// Force protocol=0: callers may pass IPPROTO_TCP for the AF_INET socket
+	// (e.g. netperf's create_data_socket uses res->ai_protocol), but AF_VSOCK
+	// has its own protocol space and the virtio-vsock driver rejects anything
+	// other than 0. Without this, the vsock socket creation fails silently and
+	// the shim falls back to lwIP, which silently breaks the transparent shim.
 	if (family == AF_INET && type == SOCK_STREAM) {
 		struct posix_socket_driver *vsock_driver = posix_socket_driver_get(AF_VSOCK);
-		void *vsock_data = posix_socket_create(vsock_driver, AF_VSOCK, type, protocol);
+		void *vsock_data = posix_socket_create(vsock_driver, AF_VSOCK, type, 0);
 		if (unlikely(vsock_data && PTRISERR(vsock_data))) {
 			goto out;
 		}
@@ -630,6 +635,7 @@ UK_SYSCALL_R_DEFINE(int, getsockname, int, sock,
 {
 	int ret;
 	struct uk_ofile *of;
+	struct socket_alloc *al;
 
 	trace_posix_socket_getsockname(sock, addr, addr_len);
 
@@ -639,8 +645,32 @@ UK_SYSCALL_R_DEFINE(int, getsockname, int, sock,
 		goto out;
 	}
 
+	al = __containerof(of->file, struct socket_alloc, f);
 	uk_file_rlock(of->file);
-	ret = posix_socket_getsockname(of->file, addr, addr_len);
+	if (al->stub_node.driver) {
+		/* AF_INET facade over an AF_VSOCK socket: translate the
+		 * vsock address back to sockaddr_in so apps that look at
+		 * the bound port via getsockname (e.g. netperf reporting
+		 * its data port to the peer) see the right port. */
+		struct sockaddr_vm addr_vm;
+		socklen_t vm_len = sizeof(addr_vm);
+		ret = posix_socket_getsockname(of->file,
+					       (struct sockaddr *)&addr_vm,
+					       &vm_len);
+		if (ret == 0) {
+			struct sockaddr_in addr_in = {
+				.sin_family = AF_INET,
+				.sin_port = htons((__u16)addr_vm.svm_port),
+				.sin_addr = { .s_addr = 0 /* 0.0.0.0 */ }
+			};
+			socklen_t copy = (*addr_len < sizeof(addr_in)) ?
+					 *addr_len : sizeof(addr_in);
+			memcpy(addr, &addr_in, copy);
+			*addr_len = sizeof(addr_in);
+		}
+	} else {
+		ret = posix_socket_getsockname(of->file, addr, addr_len);
+	}
 	uk_file_runlock(of->file);
 	uk_ofile_release(of);
 

@@ -6,6 +6,8 @@
 
 # Unikraft build artifacts
 apps/*/build/
+apps/*/build-arm64/
+apps/*/build-vsock/
 
 # Generated config (derived from netperf.defconfig)
 apps/*/.config

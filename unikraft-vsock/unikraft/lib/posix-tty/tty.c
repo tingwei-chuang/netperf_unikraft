@@ -144,7 +144,10 @@ static int init_posix_tty(struct uk_init_ctx *ictx __unused)
 }
 
 #if CONFIG_LIBPOSIX_TTY_DEVFS
-uk_rootfs_initcall_prio(init_posix_tty, 0x0, UK_FS_PRIO_FSAVAIL);
+/* Workaround: macro chain UK_FS_PRIO_FSAVAIL doesn't fully expand before
+ * stringification in __section(), causing the section name to not be merged
+ * into .uk_inittab. Use a direct numeric priority (2 = FSAVAIL). */
+uk_rootfs_initcall_prio(init_posix_tty, 0x0, 2);
 #else /* !CONFIG_LIBPOSIX_TTY_DEVFS */
 uk_rootfs_initcall(init_posix_tty, 0x0);
 #endif /* !CONFIG_LIBPOSIX_TTY_DEVFS */

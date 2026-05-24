@@ -217,6 +217,10 @@ void sys_free(void *ptr);
 
 #if CONFIG_LWIP_RCVBUF
 #define LWIP_SO_RCVBUF 1
+/* Override lwIP's default of INT_MAX; netperf reads this value back via
+ * getsockopt(SO_RCVBUF) and uses it to size receive buffers, so a huge
+ * default causes catastrophic over-allocation. */
+#define RECV_BUFSIZE_DEFAULT (TCP_WND)
 #endif
 
 #if CONFIG_LWIP_LINGER
