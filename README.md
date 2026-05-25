@@ -295,20 +295,24 @@ virtio-vsock to compare against.
 ## Running on real arm64
 
 The arm64 images target QEMU's `-M virt` machine. On a real arm64 host with
-KVM, the same image runs unchanged — just add `-enable-kvm` and pick the GIC
-version your host kernel exposes. Most arm64 KVM hosts ship only GICv3, while
-this build defaults to GICv2 (Unikraft's `KVM_VMM_QEMU` implies GICv2 on
-arm64). Two options:
+KVM, the same image runs unchanged — just add `-enable-kvm -cpu host`.
 
-1. Force QEMU to expose a GICv2 distributor (if supported on your host):
-   `-M virt,gic-version=2`.
-2. Rebuild with `CONFIG_LIBUKINTCTLR_GICV3=y` in the defconfig (mirrors
-   `unikraft/app-iperf3`'s `_defconfig`).
+The **vsock defconfig builds in both GICv2 and GICv3** drivers
+(`CONFIG_LIBUKINTCTLR_GICV2=y` and `CONFIG_LIBUKINTCTLR_GICV3=y`).
+`uk_intctlr_probe()` tries GICv2 first and falls back to GICv3 when the FDT
+advertises `arm,gic-v3` instead of `arm,cortex-a15-gic`. So one image covers
+both QEMU TCG `-M virt` (GICv2 by default) and real arm64 KVM hosts (which
+almost always expose only GICv3 to guests).
+
+The **arm64 TCP defconfig still defaults to GICv2 only** (inherited from
+`KVM_VMM_QEMU`'s `imply LIBUKINTCTLR_GICV2`). On a GICv3-only KVM host, either
+force GICv2 with `-M virt,gic-version=2` (if supported) or add
+`CONFIG_LIBUKINTCTLR_GICV3=y` to `netperf.arm64.defconfig` and rebuild.
 
 Sample run on real arm64 with KVM:
 
 ```bash
-qemu-system-aarch64 -enable-kvm -M virt,gic-version=2 -cpu host \
+qemu-system-aarch64 -enable-kvm -M virt -cpu host \
   -kernel build-vsock/netperf_qemu-arm64 -m 256 \
   -netdev user,id=net0 -device virtio-net-pci,netdev=net0 \
   -device vhost-vsock-device,bus=virtio-mmio-bus.0,guest-cid=3 \

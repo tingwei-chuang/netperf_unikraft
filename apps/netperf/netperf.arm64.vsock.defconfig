@@ -21,6 +21,15 @@ CONFIG_KVM_BOOT_PROTO_LXBOOT=y
 
 CONFIG_MCPU_ARM64_GENERIC=y
 
+# Build BOTH GICv2 and GICv3 so the same image runs under QEMU TCG `-M virt`
+# (which exposes GICv2 by default) AND on real arm64 hosts with KVM (which
+# almost always expose only GICv3 to guests). uk_intctlr_probe() tries GICv2
+# first and falls back to GICv3 when the FDT advertises `arm,gic-v3` instead
+# of `arm,cortex-a15-gic`. Without GICv3 here, `-enable-kvm` on a GICv3 host
+# leaves the guest with no usable interrupt controller.
+CONFIG_LIBUKINTCTLR_GICV2=y
+CONFIG_LIBUKINTCTLR_GICV3=y
+
 CONFIG_LIBMUSL=y
 CONFIG_LIBVIRTIO_NET=y
 
